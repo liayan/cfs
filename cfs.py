@@ -50,12 +50,11 @@ def load_data(fname):
 
   global events
   events_data = pd.read_csv(zf.open("EVTS"))
-  events = np.asarray(events_data['EVENTS'])
-  ##events = np.asarray(events_data['EVENTS'])[1:12]
+  events = np.asarray(events_data['EVENTS'])[1:12]
   print(events)
 
-  raw_data = pd.read_csv(zf.open("DATA"))
-  ##raw_data = pd.read_csv(zf.open("DATA")).iloc[0:100,[0,1,2,3,5,6,7,8,9,10,11,12,13,14,15]]
+  #raw_data = pd.read_csv(zf.open("DATA")).iloc[0:100,[0,1,2,3,5,6,7,8,9,10,11,12,13,14,15]]
+  raw_data = pd.read_csv(zf.open("DATA")).iloc[:,[0,1,2,3,5,6,7,8,9,10,11,12,13,14,15]]
   print(raw_data)
 
   ##global workload for future usuage
@@ -183,14 +182,14 @@ def caclulate_expected_action(raw_data):
     print(raw_data)
     print(feature_counts)
     for i in range(feature_counts):
-      plt.scatter(raw_data['FEATURE'+str(i)],raw_data['EXPECTED'],s=20)
+      plt.scatter(raw_data['FEATURE'+str(i+1)],raw_data['EXPECTED'],s=20)
       plt.title('Feature' + str(i) + ' : ' + events[i])
       plt.show()
 
     for i in range(feature_counts):
       #plt.scatter(raw_data['ITER'],raw_data['FEATURE'+str(i)])
-      plt.scatter(raw_data.index,raw_data['FEATURE'+str(i)])
-      plt.title('Feature' + str(i)+ ' : ' + events[i])
+      plt.scatter(raw_data.index,raw_data['FEATURE'+str(i+1)])
+      plt.title('Feature' + str(i+1)+ ' : ' + events[i])
       plt.show()
     
   return raw_data
@@ -219,6 +218,7 @@ def su_correlation(f1, f2):
     t2 = entropyd(f1)
     t3 = entropyd(f2)
     su = 2.0 * t1 / (t2 + t3)
+    print([f1,f2,t1,t2,t3,su])
 
     return su
 
@@ -390,16 +390,37 @@ def main():
   
   n = len(raw_data)
   feature_counts = raw_data.shape[1] - 3
+  print(feature_counts)
   g = [[0.0 for i in range(n)] for j in range(feature_counts)]
+  h = [[0.0 for i in range(n)] for j in range(feature_counts)]
  
+
+  split_data = np.vsplit(raw_data,4)
+  print(split_data[0]) 
+
+ # for i in range(feature_counts):
+ #   for j in range(i):
+ #     fig, ax = plt.subplots()  
+ #     split_data[0].sort_values('ITER',inplace=True)
+ #     ax.scatter(split_data[0].index,split_data[0]['FEATURE'+str(i+1)],c='g')
+ #     ax.scatter(split_data[0].index,split_data[0]['FEATURE'+str(j+1)],c='r')
+ #     name = 'event: '+events[int(i)]+' vs event: '+events[int(j)]
+ #     plt.title(name)
+ #     fig.savefig(name)
+ #     plt.show()
+
+
   for i in range(feature_counts):
     global tag
     tag = 1
-    feature_name = 'FEATURE' + str(i)
+    feature_name = 'FEATURE' + str(i+1)
     if debug:
       print(feature_name+ ' : ' + events[i])
 
+    h[i] = np.asarray(raw_data[feature_name]).copy()
     raw_data.sort_values(feature_name,inplace=True)
+
+
     global data
     data = pd.DataFrame({'EXPECTED':raw_data['EXPECTED'],'G':-1,'Iter':raw_data.index})
     
@@ -411,12 +432,25 @@ def main():
     g[i] = np.asarray(data['G']).copy()
     data.drop(data.index, inplace=True)
 
+  for i in range(feature_counts):
+    for j in range(i):
+      fig, ax = plt.subplots()  
+      ax.scatter(g[i],c='g')
+      ax.scatter(g[j],c='r')
+      name = 'event: '+events[int(i)]+' vs event: '+events[int(j)]
+      plt.title(name)
+      fig.savefig(name)
+      plt.show()
+
+
+  print(h)
   if debug:
+    feature_index = 1
     for i in range(feature_counts):
       print(g[i])
       plt.ylim(ymax=4,ymin=0)
       plt.scatter(raw_data['FEATURE'+str(i+feature_index)],g[i])
-      plt.title('Feature' + str(i) + ' : ' + events[i])
+      plt.title('Feature' + str(i+1) + ' : ' + events[i])
       plt.show()
 
   raw_data.sort_index(inplace=True)
@@ -425,10 +459,12 @@ def main():
   r_fc = [0.0 for i in range(feature_counts)]
   r_ff = [[0.0 for i in range(feature_counts)] for j in range(feature_counts)]
 
+
   for i in range(feature_counts):
     r_fc[i]=su_correlation(g[i],c)
     for j in range(feature_counts):
         r_ff[i][j] = su_correlation(g[i],g[j])
+
 
   label = events
   pd_r_ff = pd.DataFrame(r_ff,columns=label,index=label)
@@ -437,6 +473,24 @@ def main():
 
   plt.savefig('feature.png', dpi=300)
   plt.close()
+
+
+  feature_fc = [0.0 for i in range(feature_counts)]
+  feature_ff = [[0.0 for i in range(feature_counts)] for j in range(feature_counts)]
+
+
+  for i in range(feature_counts):
+    feature_fc[i]=su_correlation(h[i],c)
+    for j in range(feature_counts):
+        feature_ff[i][j] = su_correlation(h[i],h[j])
+
+  pd_r_ff = pd.DataFrame(feature_ff,columns=label,index=label)
+  pd_r_ff.to_csv("feature_ff.csv", index=True)
+  sns.heatmap(pd_r_ff,cmap="RdBu_r")
+
+  plt.savefig('h_feature.png', dpi=300)
+  plt.close()
+
 
   if debug:
     print(r_fc)
